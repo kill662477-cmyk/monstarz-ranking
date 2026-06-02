@@ -1,0 +1,56 @@
+name: collect-monstarz
+
+on:
+  schedule:
+    - cron: '5 18 * * *'      # 매일 03:05 KST (= 18:05 UTC) 신규 글 수집
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'update(신규만) 또는 backfill(특정 월 전체)'
+        type: choice
+        options: [update, backfill]
+        default: update
+      month:
+        description: 'backfill 대상 월 (예: 2026-06)'
+        default: ''
+      start_id:
+        description: 'backfill 시작 글번호 (해당 월 다음달 초 근처)'
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect-monstarz
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Collect
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "backfill" ]; then
+            python scraper/scrape.py backfill \
+              --month "${{ github.event.inputs.month }}" \
+              --start-id "${{ github.event.inputs.start_id }}" \
+              --delay 0.5 --max-minutes 300
+          else
+            python scraper/scrape.py update --delay 0.5 --max-minutes 300
+          fi
+
+      - name: Build stats JSON
+        run: python scraper/build_stats.py
+
+      - name: Commit results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data docs/data
+          git diff --cached --quiet || git commit -m "data: update monstarz ranking [skip ci]"
+          git push
