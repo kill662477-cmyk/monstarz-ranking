@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스타대학 월간 활동 랭킹</title>
+<meta name="description" content="와이고수 스타대학(pan_monstarz) 게시판 월간 활동 집계 — 글/추천받음/댓글/추천누름 TOP 랭킹">
+<style>
+  :root{
+    --bg:#07111e; --panel:#0d1b2d; --panel2:#101f34;
+    --line:rgba(158,190,229,.18); --line2:rgba(158,190,229,.30);
+    --text:#edf6ff; --muted:#8ea4bf; --soft:#b9cbe0;
+    --green:#39e173; --green2:#1fb95c; --blue:#5aa7ff; --red:#ff6262; --gold:#f3c64e;
+    --shadow:0 20px 60px rgba(0,0,0,.38); --radius:18px;
+    --gold-m:#ffd54a; --silver-m:#cdd9e8; --bronze-m:#e3a05a;
+  }
+  html.light{
+    --bg:#eef6ff; --panel:#ffffff; --panel2:#f4f9ff;
+    --line:rgba(40,98,160,.18); --line2:rgba(40,98,160,.30);
+    --text:#12233a; --muted:#5a6e89; --soft:#3f5a7a;
+    --green:#12a04a; --green2:#0f9042; --blue:#1f6fd6; --red:#d63b3b; --gold:#b07d12;
+    --shadow:0 20px 50px rgba(40,90,160,.16);
+    --gold-m:#d39e00; --silver-m:#7d8da0; --bronze-m:#a9682f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:var(--text);font-family:"Pretendard","Noto Sans KR",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.45;
+    background:
+      radial-gradient(circle at 18% -8%,rgba(57,225,115,.12),transparent 32%),
+      radial-gradient(circle at 88% 0%,rgba(90,167,255,.13),transparent 28%),
+      linear-gradient(180deg,#06101b 0%,#081524 42%,#050c15 100%);}
+  html.light body{background:
+      radial-gradient(circle at 18% -8%,rgba(18,160,74,.10),transparent 32%),
+      radial-gradient(circle at 88% 0%,rgba(31,111,214,.12),transparent 28%),
+      linear-gradient(180deg,#f7fbff 0%,#eaf3ff 42%,#e1ecfb 100%);}
+  a{color:inherit;text-decoration:none}
+  button,select{font:inherit;cursor:pointer}
+  .wrap{width:min(100%,1220px);margin:0 auto;padding:26px 20px 60px}
+
+  /* header */
+  .head{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:8px}
+  .brand{display:flex;align-items:center;gap:13px}
+  .mark{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;flex:0 0 auto;
+    background:linear-gradient(135deg,#0e2b4d,#0b1320);border:1px solid rgba(255,255,255,.12);box-shadow:0 0 0 4px rgba(57,225,115,.06)}
+  html.light .mark{background:linear-gradient(135deg,#dbe9fb,#c4d6ee);border-color:rgba(40,90,160,.18)}
+  .mark::before{content:"★";color:var(--gold);font-size:25px;text-shadow:0 0 14px rgba(244,207,89,.5)}
+  .titles h1{margin:0;font-size:27px;font-weight:950;letter-spacing:-.04em}
+  .titles .sub{color:var(--muted);font-weight:800;margin-top:2px;font-size:13.5px}
+  .head .right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .ctrl{height:42px;display:inline-flex;align-items:center;gap:8px;padding:0 14px;border:1px solid var(--line);border-radius:11px;
+    background:rgba(255,255,255,.045);color:var(--text);font-weight:850}
+  html.light .ctrl{background:rgba(31,111,214,.06)}
+  .ctrl select{border:0;background:transparent;color:inherit;font-weight:900;outline:none}
+  .ctrl select option{background:var(--panel);color:var(--text)}
+  .theme-btn{width:42px;justify-content:center;padding:0}
+
+  /* meta bar */
+  .meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 6px;color:var(--soft);font-weight:800;font-size:13.5px}
+  .meta .dot{width:4px;height:4px;border-radius:50%;background:var(--muted);opacity:.6}
+  .badge{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-weight:900;font-size:12.5px;border:1px solid var(--line)}
+  .badge.live{color:var(--green);border-color:rgba(57,225,115,.4);background:rgba(57,225,115,.10)}
+  .badge.sample{color:var(--gold);border-color:rgba(243,198,78,.4);background:rgba(243,198,78,.10)}
+  .badge.partial{color:var(--blue);border-color:rgba(90,167,255,.4);background:rgba(90,167,255,.10)}
+  .progress{flex:1;min-width:140px;max-width:320px;height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+  html.light .progress{background:rgba(40,90,160,.12)}
+  .progress > span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--green2),var(--green))}
+
+  /* grid of metric cards */
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:14px}
+  .card{border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,var(--panel),var(--panel2));box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+  .card-head{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line);
+    background:linear-gradient(90deg,rgba(255,255,255,.045),transparent)}
+  html.light .card-head{background:linear-gradient(90deg,rgba(31,111,214,.05),transparent)}
+  .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:20px;flex:0 0 auto;border:1px solid var(--line)}
+  .card.m-posts .ic{color:var(--green);background:rgba(57,225,115,.12)}
+  .card.m-recv .ic{color:var(--blue);background:rgba(90,167,255,.12)}
+  .card.m-comments .ic{color:var(--gold);background:rgba(243,198,78,.12)}
+  .card.m-given .ic{color:var(--red);background:rgba(255,98,98,.12)}
+  .card-head .t{font-size:18px;font-weight:950;letter-spacing:-.03em}
+  .card-head .u{color:var(--muted);font-weight:800;font-size:12.5px;margin-top:1px}
+  .card.m-posts{border-top:3px solid var(--green)}
+  .card.m-recv{border-top:3px solid var(--blue)}
+  .card.m-comments{border-top:3px solid var(--gold)}
+  .card.m-given{border-top:3px solid var(--red)}
+
+  ul.rank{list-style:none;margin:0;padding:8px 8px 10px;display:flex;flex-direction:column;gap:4px}
+  li.row{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:11px;padding:9px 11px;border-radius:12px;position:relative}
+  li.row:hover{background:rgba(255,255,255,.04)}
+  html.light li.row:hover{background:rgba(31,111,214,.05)}
+  .rk{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:950;font-size:15px;
+    background:rgba(255,255,255,.06);color:var(--soft);border:1px solid var(--line)}
+  li.top1 .rk{color:#3a2c00;background:linear-gradient(135deg,#ffe27a,var(--gold-m));border-color:transparent;box-shadow:0 4px 12px rgba(243,198,78,.3)}
+  li.top2 .rk{color:#26303c;background:linear-gradient(135deg,#eef3f9,var(--silver-m));border-color:transparent}
+  li.top3 .rk{color:#3a2410;background:linear-gradient(135deg,#f6c98f,var(--bronze-m));border-color:transparent}
+  .who{min-width:0}
+  .who .nick{font-size:16px;font-weight:900;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .who .nick:hover{text-decoration:underline}
+  .who .no{color:var(--muted);font-weight:750;font-size:11.5px;margin-top:1px}
+  .val{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:64px}
+  .val b{font-size:19px;font-weight:950;letter-spacing:-.02em}
+  .val .bar{width:74px;height:5px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden}
+  html.light .val .bar{background:rgba(40,90,160,.12)}
+  .val .bar > i{display:block;height:100%;border-radius:999px}
+  .card.m-posts .bar>i{background:var(--green)} .card.m-recv .bar>i{background:var(--blue)}
+  .card.m-comments .bar>i{background:var(--gold)} .card.m-given .bar>i{background:var(--red)}
+  .more{margin:2px 8px 12px;height:36px;border:1px dashed var(--line);border-radius:11px;background:transparent;color:var(--soft);font-weight:900;width:calc(100% - 16px)}
+  .more:hover{border-color:var(--line2);background:rgba(255,255,255,.03)}
+  .empty{padding:30px;text-align:center;color:var(--muted);font-weight:850}
+
+  .foot{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-weight:750;font-size:12.5px;display:flex;gap:8px 16px;flex-wrap:wrap;align-items:center}
+  .foot a{color:var(--blue);font-weight:850}
+  .note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.5}
+
+  @media(max-width:760px){
+    .grid{grid-template-columns:1fr}
+    .titles h1{font-size:23px}
+    .head .right{width:100%}
+  }
+</style>
+<script>
+/* 이 페이지 전용 테마 — 다른 어떤 페이지와도 설정을 공유하지 않음 */
+(function(){
+  try{ document.documentElement.classList.toggle('light', localStorage.getItem('rank-theme')==='light'); }catch(e){}
+})();
+</script>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="brand">
+      <div class="mark"></div>
+      <div class="titles">
+        <h1>스타대학 월간 활동 랭킹</h1>
+        <div class="sub">와이고수 스타대학(pan_monstarz) · 월간 집계</div>
+      </div>
+    </div>
+    <div class="right">
+      <label class="ctrl"><span>월</span>
+        <select id="monthSel"><option>불러오는 중…</option></select>
+      </label>
+      <button class="ctrl theme-btn" id="themeBtn" title="테마 전환" aria-label="테마 전환">🌗</button>
+    </div>
+  </div>
+
+  <div class="meta" id="meta">
+    <span id="metaMonth">—</span>
+    <span class="dot"></span>
+    <span id="metaCount">집계 대기 중</span>
+    <span id="statusBadge"></span>
+    <div class="progress" id="progWrap" style="display:none"><span id="progBar" style="width:0%"></span></div>
+    <span id="metaUpdated" style="margin-left:auto"></span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="foot">
+    <span>데이터 출처: <a id="srcLink" href="https://ygosu.com/board/pan_monstarz" target="_blank" rel="noopener">ygosu.com · 스타대학</a></span>
+    <span class="dot"></span>
+    <span>집계 자동화: GitHub Actions</span>
+    <span id="footUpdated" style="margin-left:auto"></span>
+  </div>
+  <div class="note" id="methodNote"></div>
+</div>
+
+<script>
+const METRICS = [
+  {key:"posts",     cls:"m-posts",    ic:"✍️", title:"글 많이 쓴 사람",     unit:"글",   desc:"5월에 작성한 게시글 수"},
+  {key:"recv_good", cls:"m-recv",     ic:"👍", title:"추천 많이 받은 사람", unit:"추천", desc:"본인 글이 받은 추천 합계"},
+  {key:"comments",  cls:"m-comments", ic:"💬", title:"댓글 많이 쓴 사람",   unit:"댓글", desc:"5월 글에 작성한 댓글 수"},
+  {key:"given_good",cls:"m-given",    ic:"❤️", title:"추천 많이 누른 사람", unit:"추천", desc:"5월 글에 누른 추천 수"},
+];
+
+const SAMPLE = {
+  month:"2026-05", month_label:"2026년 5월", generated_at:null, sample:true,
+  source:"https://ygosu.com/board/pan_monstarz",
+  collection:{complete:false, progress_pct:0, posts_total:0, members_total:0},
+  boards:{
+    posts:     [["치리팬",1],["남수댕연구소",1],["길수교",1],["라바대가리",1],["크로프",1]].map((x,i)=>({rank:i+1,nick:x[0],no:"—",value:0})),
+    recv_good: [["치리팬",1],["남수댕연구소",1],["길수교",1],["라바대가리",1],["크로프",1]].map((x,i)=>({rank:i+1,nick:x[0],no:"—",value:0})),
+    comments:  [["치리팬",1],["남수댕연구소",1],["길수교",1],["라바대가리",1],["크로프",1]].map((x,i)=>({rank:i+1,nick:x[0],no:"—",value:0})),
+    given_good:[["치리팬",1],["남수댕연구소",1],["길수교",1],["라바대가리",1],["크로프",1]].map((x,i)=>({rank:i+1,nick:x[0],no:"—",value:0})),
+  }
+};
+
+const $ = s => document.querySelector(s);
+const fmt = n => (n==null?"—":Number(n).toLocaleString("ko-KR"));
+const NICK_URL = no => (no && no!=="—") ? `https://ygosu.com/community/minilog/${no}` : null;
+
+let expanded = {};
+
+function rowHTML(item, max, expandedShow){
+  const pct = max>0 ? Math.max(4, Math.round(item.value/max*100)) : 0;
+  const topcls = item.rank<=3 ? `top${item.rank}` : "";
+  const url = NICK_URL(item.no);
+  const nick = url
+    ? `<a class="nick" href="${url}" target="_blank" rel="noopener" title="${item.nick}">${escapeHtml(item.nick)}</a>`
+    : `<div class="nick" title="${escapeHtml(item.nick)}">${escapeHtml(item.nick)}</div>`;
+  return `<li class="row ${topcls}">
+    <div class="rk">${item.rank}</div>
+    <div class="who">${nick}<div class="no">${item.no&&item.no!=="—"?"#"+item.no:""}</div></div>
+    <div class="val"><b>${fmt(item.value)}</b><div class="bar"><i style="width:${pct}%"></i></div></div>
+  </li>`;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+function render(data){
+  const isSample = !!data.sample;
+  const ml = data.month_label || data.month || "—";
+  $("#metaMonth").textContent = ml + " 랭킹";
+  const col = data.collection || {};
+  $("#metaCount").textContent = (col.posts_total!=null && col.posts_total>0)
+    ? `게시글 ${fmt(col.posts_total)}개 · 참여자 ${fmt(col.members_total)}명`
+    : (isSample ? "예시 데이터" : "집계 데이터 없음");
+
+  // status badge + progress
+  const sb = $("#statusBadge"); const pw=$("#progWrap"); const pb=$("#progBar");
+  if(isSample){ sb.className="badge sample"; sb.textContent="샘플"; pw.style.display="none"; }
+  else if(col.complete){ sb.className="badge live"; sb.textContent="집계 완료"; pw.style.display="none"; }
+  else { sb.className="badge partial"; sb.textContent=`수집 중 ${col.progress_pct||0}%`; pw.style.display=""; pb.style.width=(col.progress_pct||0)+"%"; }
+
+  // updated time
+  const up = data.generated_at ? new Date(data.generated_at) : null;
+  const upTxt = up ? `업데이트 ${up.toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}` : "";
+  $("#metaUpdated").textContent = upTxt; $("#footUpdated").textContent = upTxt;
+  if(data.source) $("#srcLink").href = data.source;
+
+  // cards
+  const grid = $("#grid"); grid.innerHTML="";
+  for(const m of METRICS){
+    const list = (data.boards && data.boards[m.key]) || [];
+    const max = list.length ? Math.max(...list.map(x=>x.value)) : 0;
+    const show = expanded[m.key] ? list.slice(0,10) : list.slice(0,5);
+    const card = document.createElement("section");
+    card.className = "card "+m.cls;
+    card.innerHTML = `
+      <div class="card-head">
+        <div class="ic">${m.ic}</div>
+        <div><div class="t">${m.title}</div><div class="u">${m.desc}</div></div>
+      </div>
+      ${ show.length
+          ? `<ul class="rank">${show.map(it=>rowHTML(it,max)).join("")}</ul>`
+          : `<div class="empty">아직 집계된 데이터가 없습니다</div>` }
+      ${ list.length>5 ? `<button class="more" data-k="${m.key}">${expanded[m.key]?"접기 ▲":"TOP 10 더보기 ▼"}</button>` : "" }
+    `;
+    grid.appendChild(card);
+  }
+  grid.querySelectorAll(".more").forEach(b=>b.onclick=()=>{ const k=b.dataset.k; expanded[k]=!expanded[k]; render(currentData); });
+
+  $("#methodNote").textContent = isSample
+    ? "※ 표시된 이름은 예시입니다. 실제 집계 데이터(data/*.json)가 로드되면 자동으로 교체됩니다."
+    : "※ 집계 기준: 해당 월에 작성된 게시글 및 그 글에 달린 댓글·추천. '추천 많이 누른 사람'은 글 추천인 목록 기준. 닉네임은 집계 시점 기준입니다.";
+}
+
+let currentData = SAMPLE;
+
+async function loadMonth(month){
+  try{
+    const res = await fetch(`data/monstarz_${month}.json?v=`+Date.now());
+    if(!res.ok) throw new Error("no file");
+    currentData = await res.json();
+  }catch(e){
+    currentData = SAMPLE; currentData.month = month;
+  }
+  expanded = {};
+  render(currentData);
+}
+
+async function init(){
+  render(SAMPLE); // 즉시 레이아웃 표시
+  let months = [];
+  try{
+    const r = await fetch("data/months.json?v="+Date.now());
+    if(r.ok){ const j = await r.json(); months = j.months||[]; }
+  }catch(e){}
+  const sel = $("#monthSel");
+  if(months.length){
+    sel.innerHTML = months.map(m=>`<option value="${m.month}">${m.label||m.month}</option>`).join("");
+    sel.value = months[0].month;
+    sel.onchange = ()=>loadMonth(sel.value);
+    loadMonth(months[0].month);
+  }else{
+    // 기본 단일 월
+    const def = "2026-05";
+    sel.innerHTML = `<option value="${def}">2026년 5월</option>`;
+    sel.onchange = ()=>loadMonth(sel.value);
+    loadMonth(def);
+  }
+}
+
+$("#themeBtn").onclick = ()=>{
+  const light = !document.documentElement.classList.contains("light");
+  document.documentElement.classList.toggle("light", light);
+  try{ localStorage.setItem("rank-theme", light?"light":"dark"); }catch(e){}
+};
+
+init();
+</script>
+</body>
+</html>
