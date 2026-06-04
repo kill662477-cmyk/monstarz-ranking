@@ -2,7 +2,7 @@ name: collect-monstarz
 
 on:
   schedule:
-    - cron: '5 18 * * *'      # 매일 03:05 KST (= 18:05 UTC) 신규 글 수집
+    - cron: '5 2,10,18 * * *' # 매일 03:05, 11:05, 19:05 KST 신규 글 수집
   workflow_dispatch:
     inputs:
       mode:
