@@ -320,7 +320,7 @@ def run_recover(from_month, delay, with_voters, max_minutes):
         save_json(rpath, recovery)
     if not recovery.get("initialized"):
         # Repeatable initialization; never mix old partial totals with rebuilt counts.
-        for directory, prefix in ((DATA_DIR, "state_"), (PUB_DIR, "monstarz_")):
+        for directory, prefix in ((DATA_DIR, "state_"),):
             for name in os.listdir(directory):
                 if name.startswith(prefix) and name.endswith(".json"):
                     month = name[len(prefix):-5]

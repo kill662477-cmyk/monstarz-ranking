@@ -79,7 +79,7 @@ class ScraperTests(unittest.TestCase):
                  patch.object(scrape, "run_backfill", return_value={"done": False}):
                 scrape.run_recover("2026-08", 0, False, 1)
                 self.assertFalse((data / "state_2026-08.json").exists())
-                self.assertFalse((public / "monstarz_2026-08.json").exists())
+                self.assertTrue((public / "monstarz_2026-08.json").exists())
                 self.assertTrue((data / "state_2026-07.json").exists())
                 (data / "state_2026-08.json").write_text('{"rebuilt":true}')
                 scrape.run_recover("2026-08", 0, False, 1)

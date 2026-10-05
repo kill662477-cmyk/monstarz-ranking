@@ -212,6 +212,7 @@ function render(data){
   // status badge + progress
   const sb = $("#statusBadge"); const pw=$("#progWrap"); const pb=$("#progBar");
   if(isSample){ sb.className="badge sample"; sb.textContent="샘플"; pw.style.display="none"; }
+  else if(col.recovery_pending){ sb.className="badge partial"; sb.textContent="복구 대기 · 기존 부분 집계"; pw.style.display="none"; }
   else if(col.complete){ sb.className="badge live"; sb.textContent="집계 완료"; pw.style.display="none"; }
   else { sb.className="badge partial"; sb.textContent=`수집 중 ${col.progress_pct||0}%`; pw.style.display=""; pb.style.width=(col.progress_pct||0)+"%"; }
 
@@ -245,7 +246,11 @@ function render(data){
 
   $("#methodNote").textContent = isSample
     ? "※ 표시된 이름은 예시입니다. 실제 집계 데이터(data/*.json)가 로드되면 자동으로 교체됩니다."
-    : "※ 집계 기준: 해당 월에 작성된 게시글 및 그 글에 달린 댓글·추천. '추천 많이 누른 사람'은 글 추천인 목록 기준. 닉네임은 집계 시점 기준입니다.";
+    : (col.recovery_pending
+        ? "※ 재수집 차례를 기다리는 중입니다. 표시된 숫자는 복구 전 부분 집계이며 월 전체 수치가 아닙니다."
+        : (!col.complete && col.last_date
+            ? `※ 월 전체 집계 미완료. 최근 글부터 역순으로 수집 중이며 현재 ${col.last_date}까지 확인했습니다. `
+            : "") + "※ 집계 기준: 해당 월에 작성된 게시글 및 그 글에 달린 댓글·추천. '추천 많이 누른 사람'은 글 추천인 목록 기준. 닉네임은 집계 시점 기준입니다.");
 }
 
 let currentData = SAMPLE;

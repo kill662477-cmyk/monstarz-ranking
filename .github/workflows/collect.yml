@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: collect-monstarz
@@ -35,7 +36,7 @@ jobs:
           python-version: '3.12'
 
       - name: Test collector
-        run: python -m unittest discover -s scraper -p test_scrape.py
+        run: python -m unittest discover -s scraper -p 'test_*.py'
 
       - name: Collect
         run: |
@@ -62,3 +63,31 @@ jobs:
           git add data docs/data
           git diff --cached --quiet || git commit -m "data: update monstarz ranking [skip ci]"
           git push
+
+      - name: Report collection status
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path('data/recovery.json')
+          if path.exists():
+              recovery = json.loads(path.read_text())
+              if recovery.get('done'):
+                  message = '복구 완료: 8월 이후 전체 구간 수집 완료.'
+              else:
+                  month = recovery['month']
+                  state_path = pathlib.Path(f'data/state_{month}.json')
+                  state = json.loads(state_path.read_text()) if state_path.exists() else {}
+                  message = f"복구 진행 중: {month}, {state.get('counters', {}).get('posts', 0):,}개 글 수집. 전체 복구 미완료. 마지막 확인 날짜: {state.get('last_date', '시작 전')}."
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  summary.write(message + '\n')
+          PY
+
+      - name: Continue unfinished recovery
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if python -c 'import json, pathlib, sys; p=pathlib.Path("data/recovery.json"); sys.exit(0 if p.exists() and not json.loads(p.read_text()).get("done") else 1)'; then
+            gh workflow run collect.yml --repo "$GITHUB_REPOSITORY" --ref main -f mode=recover
+          fi

@@ -63,6 +63,7 @@ def build_one(state):
             "members_total": len(members),
             "ids_walked": c.get("ids_walked", 0),
             "voter_fetches": c.get("voter_fetches", 0),
+            "last_date": state.get("last_date"),
         },
         "boards": {k: rank(members, k) for k in METRICS},
     }
@@ -71,6 +72,7 @@ def main():
     os.makedirs(PUB_DIR, exist_ok=True)
     states = sorted(glob.glob(os.path.join(DATA_DIR, "state_*.json")))
     months = []
+    published = set()
     for sp in states:
         with open(sp, encoding="utf-8") as f:
             state = json.load(f)
@@ -79,8 +81,32 @@ def main():
         with open(out, "w", encoding="utf-8") as f:
             json.dump(pub, f, ensure_ascii=False, separators=(",", ":"))
         months.append({"month": state["month"], "label": label(state["month"])})
+        published.add(state["month"])
         print(f"wrote {out}  (members={pub['collection']['members_total']}, "
               f"posts={pub['collection']['posts_total']}, {pub['collection']['progress_pct']}%)")
+    recovery_path = os.path.join(DATA_DIR, "recovery.json")
+    if os.path.exists(recovery_path):
+        with open(recovery_path, encoding="utf-8") as file:
+            recovery = json.load(file)
+        if not recovery.get("done"):
+            # Keep waiting months visible; old totals are clearly marked as partial.
+            month = recovery["from_month"]
+            while month <= recovery["month"]:
+                if month not in published:
+                    out = os.path.join(PUB_DIR, f"monstarz_{month}.json")
+                    if os.path.exists(out):
+                        with open(out, encoding="utf-8") as file:
+                            pub = json.load(file)
+                    else:
+                        pub = build_one({"month": month, "members": {}, "counters": {}})
+                    pub["collection"]["complete"] = False
+                    pub["collection"]["recovery_pending"] = True
+                    with open(out, "w", encoding="utf-8") as file:
+                        json.dump(pub, file, ensure_ascii=False, separators=(",", ":"))
+                    months.append({"month": month, "label": label(month)})
+                year, number = map(int, month.split("-"))
+                year, number = (year + 1, 1) if number == 12 else (year, number + 1)
+                month = f"{year:04d}-{number:02d}"
     months.sort(key=lambda x: x["month"], reverse=True)
     with open(os.path.join(PUB_DIR, "months.json"), "w", encoding="utf-8") as f:
         json.dump({"months": months}, f, ensure_ascii=False)
