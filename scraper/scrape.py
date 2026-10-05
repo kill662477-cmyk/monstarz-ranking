@@ -31,7 +31,7 @@ PUB_DIR = os.path.normpath(os.path.join(HERE, "..", "docs", "data"))
 
 # ---- 파싱 정규식 -------------------------------------------------------------
 RE_DATE = re.compile(r'<div class="date">\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})')
-RE_NICK = re.compile(r"show_nick_dropdown\(\$\(this\),\s*'[^']*',\s*'(\d+)'[^>]*>(.*?)</a>", re.S)
+RE_NICK = re.compile(r"show_nick_dropdown\(\s*(?:\$\(this\)|this),\s*'[^']*',\s*'(\d+)'[^>]*>(.*?)</a>", re.S)
 
 def clean_nick(s):
     s = re.sub(r"<[^>]+>", "", s)
@@ -75,14 +75,14 @@ def parse_post(pid, html):
         return None
     md = RE_DATE.search(html)
     if not md:
-        return None
+        raise RuntimeError(f"Post {pid}: date markup not recognized")
     date = md.group(1)
 
     # 작성자: contain_user_info 블록의 첫 닉네임
-    after = html.split("id='contain_user_info'", 1)[1][:600]
+    after = html.split("id='contain_user_info'", 1)[1].split('<div class="date">', 1)[0]
     ma = RE_NICK.search(after)
     if not ma:
-        return None
+        raise RuntimeError(f"Post {pid}: author markup not recognized")
     author_no, author_nick = ma.group(1), clean_nick(ma.group(2))
 
     # 추천 수
@@ -113,7 +113,7 @@ def fetch_voters(pid):
     except Exception:
         return None
     if j.get("msg") != "SUCCESS":
-        return []
+        return None
     return [(m.group(1), clean_nick(m.group(2))) for m in RE_NICK.finditer(j.get("html", "") or "")]
 
 # ---- 집계 상태 ---------------------------------------------------------------
@@ -148,6 +148,11 @@ def member(state, no):
 
 def fold(state, rec, with_voters, delay):
     """파싱된 글 1건을 집계에 반영. 추천인 목록 fetch 여부 반환(요청수 계산용)."""
+    voters = []
+    if with_voters and rec["good"] > 0:
+        voters = fetch_voters(rec["id"])
+        if voters is None:
+            raise RuntimeError(f"Post {rec['id']}: voter fetch failed; retry without advancing cursor")
     a = member(state, rec["author_no"])
     a["nick"] = rec["author_nick"] or a["nick"]
     a["posts"] += 1
@@ -159,7 +164,6 @@ def fold(state, rec, with_voters, delay):
         m["comments"] += 1
     fetched = False
     if with_voters and rec["good"] > 0:
-        voters = fetch_voters(rec["id"])
         fetched = True
         state["counters"]["voter_fetches"] += 1
         if voters:
@@ -181,7 +185,7 @@ def current_max_id():
     return max(ids) if ids else None
 
 # ---- backfill (지정 월 전체) -------------------------------------------------
-def run_backfill(month, start_id, delay, with_voters, max_minutes):
+def run_backfill(month, start_id, delay, with_voters, max_minutes, handoff_cursor=True):
     y, mo = map(int, month.split("-"))
     lo_str = f"{y:04d}-{mo:02d}-01 00:00:00"
     ny, nmo = (y + 1, 1) if mo == 12 else (y, mo + 1)
@@ -200,6 +204,8 @@ def run_backfill(month, start_id, delay, with_voters, max_minutes):
     print(f"[{month}] backfill 시작 pid={pid} 범위[{lo_str} ~ {hi_str}) delay={delay} voters={with_voters}")
     while pid >= floor_id:
         html, st = http(f"{BASE}/board/{BOARD}/{pid}")
+        if st not in (200, 404, 410):
+            raise RuntimeError(f"Post {pid}: HTTP {st}; cursor preserved")
         state["counters"]["ids_walked"] += 1
         rec = parse_post(pid, html)
         if rec is None:
@@ -231,7 +237,7 @@ def run_backfill(month, start_id, delay, with_voters, max_minutes):
             print(f"[{month}] 시간 제한({max_minutes}분) 도달 — 저장 후 중단(재실행하면 이어서)")
             break
     save_json(state_path(month), state)
-    if state["done"]:
+    if state["done"] and handoff_cursor:
         # 다음(forward) 수집 핸드오프: 이 달 최상단 글 위부터 update가 이어받게
         handoff = state.get("top_may_id") or state["start_id"]
         save_json(os.path.join(DATA_DIR, "cursor.json"), {"last_id": handoff})
@@ -243,13 +249,13 @@ def run_update(delay, with_voters, max_minutes):
     cpath = os.path.join(DATA_DIR, "cursor.json")
     mx = current_max_id()
     if mx is None:
-        print("최신 글번호를 못 읽음 — 중단")
-        return
+        raise RuntimeError("Cannot read latest post ID")
     if not os.path.exists(cpath):
         save_json(cpath, {"last_id": mx})
         print(f"커서 초기화 last_id={mx} (다음 실행부터 신규 글 수집)")
         return
-    last = json.load(open(cpath, encoding="utf-8"))["last_id"]
+    with open(cpath, encoding="utf-8") as file:
+        last = json.load(file)["last_id"]
     if mx <= last:
         print(f"새 글 없음 (last={last}, max={mx})")
         return
@@ -261,15 +267,22 @@ def run_update(delay, with_voters, max_minutes):
     processed = 0
     while pid <= mx:
         html, st = http(f"{BASE}/board/{BOARD}/{pid}")
+        if st not in (200, 404, 410):
+            raise RuntimeError(f"Post {pid}: HTTP {st}; cursor preserved")
         rec = parse_post(pid, html)
         if rec is not None:
             month = rec["date"][:7]
             if month not in cache:
                 cache[month] = load_state(month)
-            fold(cache[month], rec, with_voters, delay)
-            cache[month]["counters"]["posts"] += 1
-            touched.add(month)
-            processed += 1
+            if pid > cache[month].get("last_processed_id", 0):
+                fold(cache[month], rec, with_voters, delay)
+                cache[month]["counters"]["posts"] += 1
+                cache[month]["last_processed_id"] = pid
+                touched.add(month)
+                processed += 1
+        # Persist counts before cursor so a failed request never skips unsaved posts.
+        for m in touched:
+            save_json(state_path(m), cache[m])
         save_json(cpath, {"last_id": pid})
         pid += 1
         time.sleep(delay)
@@ -283,6 +296,60 @@ def run_update(delay, with_voters, max_minutes):
     for m in touched:
         save_json(state_path(m), cache[m])
     print(f"update 완료 processed={processed} touched={sorted(touched)}")
+
+def run_recover(from_month, delay, with_voters, max_minutes):
+    """Rebuild damaged months newest first; resume automatically on later runs."""
+    rpath = os.path.join(DATA_DIR, "recovery.json")
+    if os.path.exists(rpath):
+        with open(rpath, encoding="utf-8") as file:
+            recovery = json.load(file)
+        if recovery.get("done"):
+            run_update(delay, with_voters, max_minutes)
+            return
+    else:
+        datetime.strptime(from_month, "%Y-%m")
+        latest = current_max_id()
+        if latest is None:
+            raise RuntimeError("Cannot read latest post ID")
+        current = datetime.now(KST).strftime("%Y-%m")
+        if from_month > current:
+            raise ValueError("Recovery start month is in the future")
+        recovery = {"from_month": from_month, "month": current,
+                    "start_id": latest, "latest_id": latest, "done": False,
+                    "initialized": False}
+        save_json(rpath, recovery)
+    if not recovery.get("initialized"):
+        # Repeatable initialization; never mix old partial totals with rebuilt counts.
+        for directory, prefix in ((DATA_DIR, "state_"), (PUB_DIR, "monstarz_")):
+            for name in os.listdir(directory):
+                if name.startswith(prefix) and name.endswith(".json"):
+                    month = name[len(prefix):-5]
+                    if recovery["from_month"] <= month <= recovery["month"]:
+                        os.remove(os.path.join(directory, name))
+        recovery["initialized"] = True
+        save_json(rpath, recovery)
+    started = time.time()
+    while True:
+        remaining = max_minutes - (time.time() - started) / 60 if max_minutes else 0
+        if max_minutes and remaining <= 0:
+            return
+        state = run_backfill(recovery["month"], recovery["start_id"],
+                             delay, with_voters, remaining, handoff_cursor=False)
+        if not state["done"]:
+            return
+        if recovery["month"] == recovery["from_month"]:
+            recovery["done"] = True
+            save_json(os.path.join(DATA_DIR, "cursor.json"),
+                      {"last_id": recovery["latest_id"]})
+            save_json(rpath, recovery)
+            print("Recovery complete; next run collects newer posts")
+            return
+        year, month = map(int, recovery["month"].split("-"))
+        year, month = (year - 1, 12) if month == 1 else (year, month - 1)
+        recovery["month"] = f"{year:04d}-{month:02d}"
+        recovery["start_id"] = state["cursor"]
+        save_json(rpath, recovery)
+
 
 # ---- CLI --------------------------------------------------------------------
 def main():
@@ -301,10 +368,18 @@ def main():
     u.add_argument("--no-voters", action="store_true")
     u.add_argument("--max-minutes", type=float, default=300)
 
+    r = sub.add_parser("recover", help="Rebuild damaged months and resume safely")
+    r.add_argument("--from-month", default="2026-08")
+    r.add_argument("--delay", type=float, default=0.5)
+    r.add_argument("--no-voters", action="store_true")
+    r.add_argument("--max-minutes", type=float, default=300)
+
     a = ap.parse_args()
     os.makedirs(DATA_DIR, exist_ok=True)
     if a.mode == "backfill":
         run_backfill(a.month, a.start_id, a.delay, not a.no_voters, a.max_minutes)
+    elif a.mode == "recover":
+        run_recover(a.from_month, a.delay, not a.no_voters, a.max_minutes)
     elif a.mode == "update":
         run_update(a.delay, not a.no_voters, a.max_minutes)
 
